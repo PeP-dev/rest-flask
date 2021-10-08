@@ -1,6 +1,4 @@
 import re
-from dependency_injector import containers, providers
-from dependency_injector.wiring import inject, Provide
 
 from flask import Flask, render_template, request, jsonify, make_response, url_for
 import json
@@ -17,7 +15,7 @@ VERB_TO_KEY = {
     'DELETE': 'remove',
     'PUT': 'modify',
 }
-with open('./databases/movies.json', "r") as jsf:
+with open('../databases/movies.json', "r") as jsf:
     movies = json.load(jsf)["movies"]
 
 
@@ -42,36 +40,48 @@ def get_json():
 
 
 # get a movie info by its ID
-@app.route("/movies/<movieid>", methods=['GET'])
-def get_movie_byid(movieid):
+@app.route("/movies/<id>", methods=['GET'])
+def get_movie_byid(id):
     for movie in movies:
-        if str(movie["id"]) == str(movieid):
+        if str(movie["id"]) == str(id):
             res = make_response(jsonify(movie), 200)
             return res
     return make_response(jsonify({"error": "Movie ID not found"}), 400)
 
 
-# add a new movie
-@app.route("/movies/<movieid>", methods=["POST"])
-def create_movie(movieid):
-    req = request.get_json()
+"""
+Creates a new movie via POST verb
+Searches through movie arrays for an id match. If a match is found, returns a 409 Conflict code
+If no match is found, returns a 201 Created, as no data is generated so the output data is the same as the input data
+Idea : Generate a uuid with a controller (this is routing layer), and only return the generated uuid
+"""
 
+
+@app.route("/movies", methods=["POST"])
+def create_movie():
+    req = request.get_json()
     for movie in movies:
-        if str(movie["id"]) == str(movieid):
+        if str(movie["id"]) == str(req['id']):
             return make_response(jsonify({"error": "movie ID already exists"}), 409)
 
     movies.append(req)
-    res = make_response(jsonify({"message": "movie added"}), 200)
+    res = make_response("", 201)
     return res
 
 
-# delete a movie
-@app.route("/movies/<movieid>", methods=["DELETE"])
-def del_movie(movieid):
+"""
+Deletes a movies via DELETE verb
+Searches throug the array looking for a match. If a match is found, return 204 No Content code
+If no match is found, returns a 404 Bad Request code
+"""
+
+
+@app.route("/movies/<id>", methods=["DELETE"])
+def del_movie(id):
     for movie in movies:
-        if str(movie["id"]) == str(movieid):
+        if str(movie["id"]) == str(id):
             movies.remove(movie)
-            return make_response(jsonify(movie), 200)
+            return make_response("", 204)
 
     res = make_response(jsonify({"error": "movie ID not found"}), 400)
     return res
@@ -79,27 +89,27 @@ def del_movie(movieid):
 
 # get a movie info by its name
 # through a query
-@app.route("/moviesbytitle", methods=['GET'])
+@app.route("/movies", methods=['GET'])
 def get_movie_bytitle():
-    json = ""
+    array = []
     if request.args:
         req = request.args
         for movie in movies:
-            if str(movie["title"]) == str(req["title"]):
-                json = movie
+            if str(req["title"]) in str(movie["title"]):
+                array.append(movie)
 
-    if not json:
+    if not array:
         res = make_response(jsonify({"error": "movie title not found"}), 400)
     else:
-        res = make_response(jsonify(json), 200)
+        res = make_response(jsonify(array), 200)
     return res
 
 
 # change a movie rating
-@app.route("/movies/<movieid>", methods=["PATCH"])
-def partial_update_movie_rating(movieid, rate):
+@app.route("/movies/<id>", methods=["PATCH"])
+def partial_update_movie_rating(id, rate):
     for movie in movies:
-        if str(movie["id"]) == str(movieid):
+        if str(movie["id"]) == str(id):
             movie["rating"] = int(rate)
             res = make_response(jsonify(movie), 200)
             return res
@@ -107,11 +117,12 @@ def partial_update_movie_rating(movieid, rate):
     res = make_response(jsonify({"error": "movie ID not found"}), 201)
     return res
 
+
 # change a movie rating
-@app.route("/movies/<movieid>", methods=["PUT"])
-def update_movie_rating(movieid, rate):
+@app.route("/movies/<id>", methods=["PUT"])
+def update_movie_rating(id, rate):
     for movie in movies:
-        if str(movie["id"]) == str(movieid):
+        if str(movie["id"]) == str(id):
             movie["rating"] = int(rate)
             res = make_response(jsonify(movie), 200)
             return res
