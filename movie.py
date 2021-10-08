@@ -1,13 +1,23 @@
-from flask import Flask, render_template, request, jsonify, make_response
+import re
+from dependency_injector import containers, providers
+from dependency_injector.wiring import inject, Provide
+
+from flask import Flask, render_template, request, jsonify, make_response, url_for
 import json
-from werkzeug.exceptions import NotFound
+
+from typing import List
 
 app = Flask(__name__)
 
 PORT = 3200
-HOST = '192.168.0.15'
-
-with open('{}/databases/movies.json'.format("."), "r") as jsf:
+LINKS = "_links"
+VERB_TO_KEY = {
+    'GET': 'read',
+    'POST': 'create',
+    'DELETE': 'remove',
+    'PUT': 'modify',
+}
+with open('./databases/movies.json', "r") as jsf:
     movies = json.load(jsf)["movies"]
 
 
@@ -86,7 +96,19 @@ def get_movie_bytitle():
 
 
 # change a movie rating
-@app.route("/movies/<movieid>/<rate>", methods=["PUT"])
+@app.route("/movies/<movieid>", methods=["PATCH"])
+def partial_update_movie_rating(movieid, rate):
+    for movie in movies:
+        if str(movie["id"]) == str(movieid):
+            movie["rating"] = int(rate)
+            res = make_response(jsonify(movie), 200)
+            return res
+
+    res = make_response(jsonify({"error": "movie ID not found"}), 201)
+    return res
+
+# change a movie rating
+@app.route("/movies/<movieid>", methods=["PUT"])
 def update_movie_rating(movieid, rate):
     for movie in movies:
         if str(movie["id"]) == str(movieid):
@@ -98,7 +120,34 @@ def update_movie_rating(movieid, rate):
     return res
 
 
+@app.after_request
+def add_next_routes(response):
+    json_object = response.get_json()
+    if type(json_object) is dict:
+        url_tuples = []
+        for rule in app.url_map.iter_rules():
+            options = {}
+            for arg in rule.arguments:
+                options[arg] = "[{0}]".format(arg)
+            url_tuples.append(
+                (url_for(rule.endpoint, **options).replace("%5B", "<").replace("%5D", ">"),
+                 list(set(VERB_TO_KEY.keys()).intersection(rule.methods)))
+            )
+        json_object[LINKS] = lookup_next_routes_regex(url_tuples, str(request.url_rule))
+        response.data = json.dumps(json_object)
+    return response
+
+
+def lookup_next_routes_regex(tuples: List[tuple], base_url: str):
+    base_url = base_url.strip("/") + "(/[aA-zZ]*/?)?"
+    map_urls = {}
+    for cur_tuple in tuples:
+        if re.search(base_url, cur_tuple[0]):
+            for verb in cur_tuple[1]:
+                map_urls[VERB_TO_KEY[verb]] = cur_tuple[0]
+    return map_urls
+
+
 if __name__ == "__main__":
-    print("Server running in port %s" % (PORT))
-    print(app.url_map)
-    app.run(host=HOST, port=PORT)
+    print("Server running in port %s" % PORT)
+    app.run(host="localhost", port=PORT)
