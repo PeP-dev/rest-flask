@@ -2,14 +2,12 @@ import re
 
 from flask import Flask, render_template, request, jsonify, make_response, url_for
 import json
-import jsonschema
-from jsonschema import validate
 
 from typing import List
 
 app = Flask(__name__)
 
-PORT = 3200
+PORT = 3500
 LINKS = "_links"
 VERB_TO_KEY = {
     'GET': 'read',
@@ -17,28 +15,8 @@ VERB_TO_KEY = {
     'DELETE': 'remove',
     'PUT': 'modify',
 }
-
-# Describe what kind of json you expect.
-MOVIE_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "id": {"type": "string"},
-        "director": {"type": "string"},
-        "rating": {"type": "number"},
-        "title": {"type": "string"},
-    },
-}
-
 with open('../databases/movies.json', "r") as jsf:
     movies = json.load(jsf)["movies"]
-
-
-def validateJson(jsonData):
-    try:
-        validate(instance=jsonData, schema=MOVIE_SCHEMA)
-    except jsonschema.exceptions.ValidationError as err:
-        return False
-    return True
 
 
 # root message
@@ -142,31 +120,20 @@ def partial_update_movie_rating(id, rate):
 
 # change a movie rating
 @app.route("/movies/<id>", methods=["PUT"])
-def update_movie_rating(id):
-    req = request.get_json()
-    if validateJson(req):
-        if "id" in req:
-            return make_response(jsonify({"error": "movie ID should not be specified"}))
-        for movie in movies:
-            if str(movie["id"]) == str(id):
-                print(type(req))
-                for keys in req.keys():
-                    movie[keys] = req[keys]
-                res = make_response(jsonify(movie), 200)
-                return res
-        res = make_response(jsonify({"error": "movie not found"}), 201)
-        return res
-    else:
-        return make_response(jsonify({"error": "incorrect JSON schema"}))
+def update_movie_rating(id, rate, director, title):
+    for movie in movies:
+        if str(movie["id"]) == str(id):
+            movie["rating"] = int(rate)
+            movie[""]
+            res = make_response(jsonify(movie), 200)
+            return res
+
+    res = make_response(jsonify({"error": "movie ID not found"}), 201)
+    return res
 
 
 @app.after_request
 def add_next_routes(response):
-    if not response.status_code:
-        return response
-    if response.status_code >= 400 and response.status_code < 500:
-        return response
-
     json_object = response.get_json()
     if type(json_object) is dict:
         url_tuples = []
