@@ -83,7 +83,7 @@ def del_movie(id):
             movies.remove(movie)
             return make_response("", 204)
 
-    res = make_response(jsonify({"error": "movie ID not found"}), 400)
+    res = make_response(jsonify({"error": "movie ID not found"}), 404)
     return res
 
 
