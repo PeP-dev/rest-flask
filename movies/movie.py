@@ -33,13 +33,6 @@ with open('../databases/movies.json', "r") as jsf:
     movies = json.load(jsf)["movies"]
 
 
-def validateJson(jsonData):
-    try:
-        validate(instance=jsonData, schema=MOVIE_SCHEMA)
-    except jsonschema.exceptions.ValidationError as err:
-        return False
-    return True
-
 
 # root message
 @app.route("/", methods=['GET'])
@@ -82,6 +75,11 @@ Idea : Generate a uuid with a controller (this is routing layer), and only retur
 @app.route("/movies", methods=["POST"])
 def create_movie():
     req = request.get_json()
+    try:
+        validate(instance=req, schema=MOVIE_SCHEMA)
+    except jsonschema.exceptions.ValidationError as err:
+        return make_response(jsonify({"error":str(err.message)}), 400)
+
     for movie in movies:
         if str(movie["id"]) == str(req['id']):
             return make_response(jsonify({"error": "movie ID already exists"}), 409)
@@ -89,7 +87,6 @@ def create_movie():
     movies.append(req)
     res = make_response("", 201)
     return res
-
 
 """
 Deletes a movies via DELETE verb
@@ -129,14 +126,20 @@ def get_movie_bytitle():
 
 # change a movie rating
 @app.route("/movies/<id>", methods=["PATCH"])
-def partial_update_movie_rating(id, rate):
+def partial_update_movie_rating(id):
     for movie in movies:
+        req = request.args
+        if "id" in req:
+            return make_response(jsonify({"error": "movie ID should not be specified"}), 400)
         if str(movie["id"]) == str(id):
-            movie["rating"] = int(rate)
+            for key in req.keys():
+                if key not in movie:
+                    return make_response(jsonify({"error": "unrecognized query params :"+str(key)}), 400)
+                movie[key] = req[key]
             res = make_response(jsonify(movie), 200)
             return res
 
-    res = make_response(jsonify({"error": "movie ID not found"}), 201)
+    res = make_response(jsonify({"error": "movie ID not found"}), 400)
     return res
 
 
@@ -144,20 +147,22 @@ def partial_update_movie_rating(id, rate):
 @app.route("/movies/<id>", methods=["PUT"])
 def update_movie_rating(id):
     req = request.get_json()
-    if validateJson(req):
-        if "id" in req:
-            return make_response(jsonify({"error": "movie ID should not be specified"}))
-        for movie in movies:
-            if str(movie["id"]) == str(id):
-                print(type(req))
-                for keys in req.keys():
-                    movie[keys] = req[keys]
-                res = make_response(jsonify(movie), 200)
-                return res
-        res = make_response(jsonify({"error": "movie not found"}), 201)
-        return res
-    else:
-        return make_response(jsonify({"error": "incorrect JSON schema"}))
+    try:
+        validate(instance=req, schema=MOVIE_SCHEMA)
+    except jsonschema.exceptions.ValidationError as err:
+        return make_response(jsonify({"error":str(err.message)}), 400)
+
+    if "id" in req:
+        return make_response(jsonify({"error": "movie ID should not be specified"}))
+    for movie in movies:
+        if str(movie["id"]) == str(id):
+            print(type(req))
+            for keys in req.keys():
+                movie[keys] = req[keys]
+            res = make_response(jsonify(movie), 200)
+            return res
+    res = make_response(jsonify({"error": "movie not found"}), 201)
+    return res
 
 
 @app.after_request

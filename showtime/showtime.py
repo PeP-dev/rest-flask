@@ -22,7 +22,7 @@ with open('../databases/movies.json', "r") as jsf:
 # root message
 @app.route("/", methods=['GET'])
 def home():
-    return make_response("<h1 style='color:blue'>Welcome to the Movie service!</h1>", 200)
+    return make_response("<h1>Test</h1>", 200)
 
 
 # to test templates of Flask
